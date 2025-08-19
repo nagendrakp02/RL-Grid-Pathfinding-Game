@@ -1,5 +1,5 @@
 import streamlit as st
-from train_agent import train_agent
+from agent import QLearningAgent
 from grid_environment import GridEnvironment
 
 # Config
@@ -8,85 +8,70 @@ START = (0, 0)
 GOAL = (4, 4)
 OBSTACLES = [(1, 1), (2, 2)]
 
-# Train RL agent once
-@st.cache_resource
-def get_agent_and_env():
-    agent = train_agent()
-    env = GridEnvironment(GRID_SIZE, START, GOAL, OBSTACLES)
-    return agent, env
+# Initialize Q-learning agent and environment once
+if 'agent' not in st.session_state:
+    st.session_state.agent = QLearningAgent(GRID_SIZE)
+if 'env' not in st.session_state:
+    st.session_state.env = GridEnvironment(GRID_SIZE, START, GOAL, OBSTACLES)
 
-agent, env = get_agent_and_env()
-
-# Reset function
+# Reset function for session state
 def reset():
     st.session_state.agent_pos = START
     st.session_state.total_reward = 0
     st.session_state.game_over = False
-    st.session_state.last_reward = 0
+    st.session_state.path = [START]
 
-# Initialize session state
-if "agent_pos" not in st.session_state:
+if 'agent_pos' not in st.session_state:
     reset()
 
-# UI Title
-st.title("🧠 RL Grid Pathfinding Game")
+st.title("🧠 RL Grid Pathfinding Game (Step-by-Step)")
 
-# Grid Display
+# Function to render the grid with path marked
 def render_grid():
     grid = [["⬜"] * GRID_SIZE for _ in range(GRID_SIZE)]
     for ox, oy in OBSTACLES:
         grid[ox][oy] = "⬛"
-    ax, ay = st.session_state.agent_pos
     gx, gy = GOAL
     grid[gx][gy] = "🏁"
+    # Mark the path, except current position
+    for (x, y) in st.session_state.path[:-1]:
+        grid[x][y] = "•"
+    # Mark current agent position
+    ax, ay = st.session_state.agent_pos
     grid[ax][ay] = "🤖"
     return grid
+
+# Control buttons
+col1, col2, _ = st.columns([1,1,6])
+with col1:
+    st.button("🔁 Reset", on_click=reset)
+with col2:
+    step_pressed = st.button("➡️ Move Step")
 
 st.subheader("🗺️ Grid:")
 grid = render_grid()
 for row in grid:
     st.write(" ".join(row))
 
-# Buttons
-st.subheader("🎮 Move your agent:")
+# Step action logic
+if step_pressed and not st.session_state.game_over:
+    env = st.session_state.env
+    agent = st.session_state.agent
+    state = st.session_state.agent_pos
 
-action = None  # Track selected action
-col_up = st.columns([1, 1, 1])
-with col_up[1]:
-    if st.button("⬆️ Up"):
-        action = 0
+    action = agent.choose_action(state)
+    next_state, reward, done = env.step(action)
+    agent.learn(state, action, reward, next_state)
 
-col_middle = st.columns([1, 1, 1])
-with col_middle[0]:
-    if st.button("⬅️ Left"):
-        action = 2
-with col_middle[2]:
-    if st.button("➡️ Right"):
-        action = 3
-
-col_down = st.columns([1, 1, 1])
-with col_down[1]:
-    if st.button("⬇️ Down"):
-        action = 1
-
-st.markdown("<br>", unsafe_allow_html=True)
-col_reset = st.columns([2, 1, 2])
-with col_reset[1]:
-    st.button("🔁 Reset Game", on_click=reset)
-
-# Move agent if an action was selected
-if action is not None and not st.session_state.game_over:
-    next_pos, reward, done = env.step(action)
-    st.session_state.agent_pos = next_pos
+    st.session_state.agent_pos = next_state
+    st.session_state.path.append(next_state)
     st.session_state.total_reward += reward
     st.session_state.game_over = done
-    st.session_state.last_reward = reward
 
-# Game Feedback
 st.subheader("📊 Game Info:")
 st.write(f"📍 Current Position: `{st.session_state.agent_pos}`")
-st.write(f"💰 Last Reward: `{st.session_state.last_reward}`")
-st.write(f"🔁 Total Reward: `{st.session_state.total_reward}`")
+st.write(f"🛤️ Path Taken: `{st.session_state.path}`")
+st.write(f"💰 Total Reward: `{st.session_state.total_reward}`")
 
 if st.session_state.game_over:
-    st.success("🎉 Goal Reached! You win!")
+    st.success("🎉 Goal Reached! The agent has learned an optimal path!")
