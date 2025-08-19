@@ -1,7 +1,7 @@
+# train_agent.py
 import numpy as np
 from agent import QLearningAgent
 from grid_environment import GridEnvironment
-import matplotlib.pyplot as plt
 
 GRID_SIZE = 5
 START = (0, 0)
@@ -11,30 +11,14 @@ OBSTACLES = [(1, 1), (2, 2)]
 def train_agent(episodes=500):
     env = GridEnvironment(GRID_SIZE, START, GOAL, OBSTACLES)
     agent = QLearningAgent(GRID_SIZE)
-    rewards = []
 
-    for ep in range(episodes):
+    for _ in range(episodes):
         state = env.reset()
         done = False
-        total_reward = 0
-
         while not done:
             action = agent.choose_action(state)
             next_state, reward, done = env.step(action)
             agent.learn(state, action, reward, next_state)
             state = next_state
-            total_reward += reward
-
-        rewards.append(total_reward)
-
-    # Plot training progress
-    plt.plot(rewards)
-    plt.xlabel("Episode")
-    plt.ylabel("Total Reward")
-    plt.title("Training Progress")
-    plt.show()
 
     return agent
-
-if __name__ == "__main__":
-    trained_agent = train_agent()
