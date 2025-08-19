@@ -1,5 +1,3 @@
-import numpy as np
-
 class GridEnvironment:
     def __init__(self, size, start, goal, obstacles):
         self.size = size
